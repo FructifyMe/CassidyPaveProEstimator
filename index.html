@@ -476,9 +476,12 @@
                         `).join('');
 
                         groupContainer.innerHTML = `
-                            <div class="flex justify-between items-center mb-3">
+                            <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
                                 <h3 class="text-xl font-bold text-gray-700">${jobName}</h3>
-                                <button data-job-name="${jobName}" class="export-group-btn text-sm bg-purple-600 text-white px-3 py-1.5 rounded-md hover:bg-purple-700 btn">Export Group to CSV</button>
+                                <div class="flex items-center space-x-2">
+                                    <button data-job-name="${jobName}" class="export-group-csv-btn text-sm bg-purple-600 text-white px-3 py-1.5 rounded-md hover:bg-purple-700 btn">Export CSV</button>
+                                    <button data-job-name="${jobName}" class="export-group-txt-btn text-sm bg-gray-500 text-white px-3 py-1.5 rounded-md hover:bg-gray-600 btn">Export Text</button>
+                                </div>
                             </div>
                             <div class="space-y-3">${estimatesHTML}</div>
                         `;
@@ -519,9 +522,12 @@
                     const newEstimates = estimates.filter(est => est.id != id);
                     saveEstimates(newEstimates);
                     openEstimateManager(); // Re-render the manager
-                } else if (target.classList.contains('export-group-btn')) {
+                } else if (target.classList.contains('export-group-csv-btn')) {
                     const jobName = target.dataset.jobName;
                     exportGroupToCSV(jobName);
+                } else if (target.classList.contains('export-group-txt-btn')) {
+                    const jobName = target.dataset.jobName;
+                    exportGroupToText(jobName);
                 }
             });
 
@@ -548,6 +554,34 @@
                 const link = document.createElement("a");
                 link.setAttribute("href", encodedUri);
                 link.setAttribute("download", `${jobName}_estimates.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            function exportGroupToText(jobName) {
+                const estimates = getSavedEstimates().filter(est => est.jobName === jobName);
+                if (estimates.length === 0) return;
+
+                let textContent = `Estimates for Job: ${jobName}\n\n`;
+                const formatCurrency = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+
+                estimates.forEach((est, index) => {
+                    textContent += `--- Estimate ${index + 1}: ${est.estimateName} ---\n`;
+                    textContent += `Final Price: ${formatCurrency(est.summary.finalPrice)}\n`;
+                    textContent += `Gross Margin: ${est.summary.grossMargin.toFixed(1)}%\n`;
+                    textContent += `Total Cost: ${formatCurrency(est.summary.totalCost)}\n\n`;
+                    textContent += "--- Inputs ---\n";
+                    for (const [key, value] of Object.entries(est.inputs)) {
+                        textContent += `${key}: ${value}\n`;
+                    }
+                    textContent += "----------------------------------------\n\n";
+                });
+
+                const encodedUri = encodeURI("data:text/plain;charset=utf-8," + textContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `${jobName}_estimates.txt`);
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
