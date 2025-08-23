@@ -319,34 +319,38 @@
                 const asphaltDepth = getValue('asphaltDepth');
                 const selectedMix = getStringValue('costingModel');
                 const asphaltUnitCost = asphaltMixCosts[selectedMix] || 0;
+                const travelExpenses = getValue('travelExpenses');
 
                 const calculatedAsphaltTons = squareYards * asphaltDepth * 0.056;
                 asphaltTonsInput.value = calculatedAsphaltTons.toFixed(2);
 
-                let totalCost = 0;
-                totalCost += calculatedAsphaltTons * asphaltUnitCost;
-                totalCost += getValue('pavingCrewDays') * unitCosts.pavingCrew;
-                totalCost += getValue('prepCrewDays') * unitCosts.prepCrew;
-                totalCost += getValue('millingCrewDays') * unitCosts.millingCrew;
-                totalCost += getValue('handCrewDays') * unitCosts.handCrew;
-                totalCost += getValue('gradingCrewDays') * unitCosts.gradingCrew;
-                totalCost += getValue('subCTruckingHours') * unitCosts.subCTrucking;
-                totalCost += getValue('disposalLoads') * unitCosts.disposal;
-                totalCost += getValue('gravelTons') * unitCosts.gravel;
-                totalCost += getValue('pulverizeDays') * unitCosts.pulverize;
-                totalCost += getValue('nightWorkDays') * unitCosts.nightWork;
-                totalCost += getValue('infraredDays') * unitCosts.infrared;
-                totalCost += getValue('pavementMarkings') + getValue('crackfill') + getValue('sealcoat') + getValue('concrete') + getValue('travelExpenses');
+                let subTotalCost = 0;
+                subTotalCost += calculatedAsphaltTons * asphaltUnitCost;
+                subTotalCost += getValue('pavingCrewDays') * unitCosts.pavingCrew;
+                subTotalCost += getValue('prepCrewDays') * unitCosts.prepCrew;
+                subTotalCost += getValue('millingCrewDays') * unitCosts.millingCrew;
+                subTotalCost += getValue('handCrewDays') * unitCosts.handCrew;
+                subTotalCost += getValue('gradingCrewDays') * unitCosts.gradingCrew;
+                subTotalCost += getValue('subCTruckingHours') * unitCosts.subCTrucking;
+                subTotalCost += getValue('disposalLoads') * unitCosts.disposal;
+                subTotalCost += getValue('gravelTons') * unitCosts.gravel;
+                subTotalCost += getValue('pulverizeDays') * unitCosts.pulverize;
+                subTotalCost += getValue('nightWorkDays') * unitCosts.nightWork;
+                subTotalCost += getValue('infraredDays') * unitCosts.infrared;
+                subTotalCost += getValue('pavementMarkings') + getValue('crackfill') + getValue('sealcoat') + getValue('concrete');
 
+                const totalCost = subTotalCost + travelExpenses;
                 let projectPrice = 0;
                 let grossMargin = getValue('grossMargin');
 
                 if (sourceOfChange === 'price') {
                     projectPrice = getValue('projectPrice');
-                    grossMargin = projectPrice > 0 ? ((projectPrice - totalCost) / projectPrice) * 100 : 0;
+                    const priceBeforeTravel = projectPrice - travelExpenses;
+                    grossMargin = priceBeforeTravel > 0 ? ((priceBeforeTravel - subTotalCost) / priceBeforeTravel) * 100 : 0;
                     grossMarginSlider.value = grossMargin > 0 ? grossMargin.toFixed(1) : 0;
                 } else {
-                    projectPrice = grossMargin < 100 ? totalCost / (1 - (grossMargin / 100)) : totalCost;
+                    const priceBeforeTravel = grossMargin < 100 ? subTotalCost / (1 - (grossMargin / 100)) : subTotalCost;
+                    projectPrice = priceBeforeTravel + travelExpenses;
                     if (document.activeElement !== projectPriceInput) {
                         projectPriceInput.value = projectPrice > 0 ? projectPrice.toFixed(2) : '';
                     }
@@ -521,4 +525,4 @@
         });
     </script>
 </body>
-</ht
+</html>
