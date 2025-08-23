@@ -94,6 +94,11 @@
             background-color: #f3f4f6; /* gray-200 */
             cursor: not-allowed;
         }
+
+        /* Estimate Manager Modal */
+        #estimateManagerModal {
+            transition: opacity 0.3s ease;
+        }
     </style>
 </head>
 <body class="text-gray-800 p-4 sm:p-6 lg:p-8">
@@ -211,22 +216,30 @@
                 </div>
                 
                 <div class="bg-white p-6 rounded-lg shadow-md card">
-                    <h2 class="text-xl font-semibold mb-4 border-b pb-2 text-gray-800">Save & View Estimates</h2>
+                    <h2 class="text-xl font-semibold mb-4 border-b pb-2 text-gray-800">Save & Manage Estimates</h2>
                     <div class="space-y-4">
+                        <div>
+                            <label for="jobName" class="block text-sm font-medium text-gray-700">Job / Client Name</label>
+                            <input type="text" id="jobName" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="e.g., Mike Farley">
+                        </div>
                         <div>
                             <label for="estimateName" class="block text-sm font-medium text-gray-700">Estimate Name</label>
                             <input type="text" id="estimateName" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="e.g., Option A - High Margin">
                         </div>
-                        <button id="saveEstimateBtn" class="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 btn">
-                            Save Current Estimate
+                        <div class="grid grid-cols-2 gap-4">
+                            <button id="saveEstimateBtn" class="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 btn">
+                                Save
+                            </button>
+                            <button id="newEstimateBtn" class="w-full bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-green-700 btn">
+                                New / Reset
+                            </button>
+                        </div>
+                        <button id="openManagerBtn" class="w-full bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-gray-700 btn">
+                            Open Estimate Manager
                         </button>
-                    </div>
-                    <div id="savedEstimatesList" class="mt-6 space-y-3">
-                        <!-- Saved estimates will be dynamically inserted here -->
                     </div>
                 </div>
 
-                <!-- NEW: Share Estimate Section -->
                 <div class="bg-white p-6 rounded-lg shadow-md card">
                     <h2 class="text-xl font-semibold mb-4 border-b pb-2 text-gray-800">Share Estimate</h2>
                     <div class="space-y-3">
@@ -249,6 +262,21 @@
         </div>
     </div>
 
+    <!-- Estimate Manager Modal -->
+    <div id="estimateManagerModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center p-4 hidden z-50 opacity-0">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h2 class="text-2xl font-bold text-gray-800">Estimate Manager</h2>
+                <button id="closeManagerBtn" class="text-gray-500 hover:text-gray-800">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </button>
+            </div>
+            <div id="managerContent" class="p-6 overflow-y-auto space-y-6">
+                <!-- Grouped estimates will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- CONFIGURATION: Unit Costs ---
@@ -266,6 +294,7 @@
 
             // --- ELEMENT SELECTORS ---
             const allInputs = document.querySelectorAll('input[type="number"], input[type="range"], select');
+            const numericInputs = document.querySelectorAll('input[type="number"]');
             const inputIds = Array.from(allInputs).map(input => input.id);
             const asphaltDepthSelect = document.getElementById('asphaltDepth');
             const costingModelSelect = document.getElementById('costingModel');
@@ -273,8 +302,13 @@
             const grossMarginSlider = document.getElementById('grossMargin');
             const projectPriceInput = document.getElementById('projectPrice');
             const saveEstimateBtn = document.getElementById('saveEstimateBtn');
+            const newEstimateBtn = document.getElementById('newEstimateBtn');
+            const jobNameInput = document.getElementById('jobName');
             const estimateNameInput = document.getElementById('estimateName');
-            const savedEstimatesList = document.getElementById('savedEstimatesList');
+            const openManagerBtn = document.getElementById('openManagerBtn');
+            const estimateManagerModal = document.getElementById('estimateManagerModal');
+            const closeManagerBtn = document.getElementById('closeManagerBtn');
+            const managerContent = document.getElementById('managerContent');
             const generateLinkBtn = document.getElementById('generateLinkBtn');
             const shareLinkContainer = document.getElementById('shareLinkContainer');
             const shareLinkInput = document.getElementById('shareLinkInput');
@@ -294,14 +328,11 @@
                     option.textContent = `${i.toFixed(1)} inches`;
                     asphaltDepthSelect.appendChild(option);
                 }
-                asphaltDepthSelect.value = "2.5"; // Set a common default
+                asphaltDepthSelect.value = "2.5";
             }
 
             function populateCostingModels() {
-                const sortedMixes = Object.keys(asphaltMixCosts).sort((a, b) => {
-                    return parseInt(a.split('_')[1]) - parseInt(b.split('_')[1]);
-                });
-
+                const sortedMixes = Object.keys(asphaltMixCosts).sort((a, b) => parseInt(a.split('_')[1]) - parseInt(b.split('_')[1]));
                 sortedMixes.forEach(mixName => {
                     const option = document.createElement('option');
                     option.value = mixName;
@@ -357,7 +388,6 @@
                 }
 
                 const pricePerSqYard = squareYards > 0 ? projectPrice / squareYards : 0;
-
                 updateDisplay(totalCost, projectPrice, grossMargin, pricePerSqYard);
             }
 
@@ -378,92 +408,156 @@
             const getSavedEstimates = () => JSON.parse(localStorage.getItem('paveProEstimates')) || [];
             const saveEstimates = (estimates) => localStorage.setItem('paveProEstimates', JSON.stringify(estimates));
 
-            function renderSavedEstimates() {
-                const estimates = getSavedEstimates();
-                savedEstimatesList.innerHTML = '';
-                if (estimates.length === 0) {
-                    savedEstimatesList.innerHTML = `<p class="text-center text-sm text-gray-500">No estimates saved yet.</p>`;
-                    return;
-                }
-                estimates.forEach((est, index) => {
-                    const estElement = document.createElement('div');
-                    estElement.className = 'p-3 bg-gray-50 rounded-lg border flex justify-between items-center';
-                    estElement.innerHTML = `
-                        <div>
-                            <p class="font-semibold text-gray-800">${est.name}</p>
-                            <p class="text-sm text-gray-600">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(est.summary.finalPrice)} | ${est.summary.grossMargin.toFixed(1)}% Margin</p>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <button data-index="${index}" title="Share this saved estimate" class="share-btn text-gray-500 hover:text-indigo-600 p-1.5 rounded-md">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
-                            </button>
-                            <button data-index="${index}" class="load-btn text-sm bg-green-500 text-white px-3 py-1.5 rounded-md hover:bg-green-600 btn">Load</button>
-                            <button data-index="${index}" class="delete-btn text-sm bg-red-500 text-white px-3 py-1.5 rounded-md hover:bg-red-600 btn">Del</button>
-                        </div>
-                    `;
-                    savedEstimatesList.appendChild(estElement);
-                });
-            }
-
             saveEstimateBtn.addEventListener('click', () => {
-                const name = estimateNameInput.value.trim();
-                if (!name) {
-                    estimateNameInput.classList.add('input-error');
-                    estimateNameInput.placeholder = 'Please enter a name first!';
-                    setTimeout(() => {
-                        estimateNameInput.classList.remove('input-error');
-                        estimateNameInput.placeholder = 'e.g., Option A - High Margin';
-                    }, 2000);
+                const jobName = jobNameInput.value.trim();
+                const estimateName = estimateNameInput.value.trim();
+
+                if (!jobName) {
+                    jobNameInput.classList.add('input-error');
+                    setTimeout(() => jobNameInput.classList.remove('input-error'), 2000);
                     return;
                 }
+                if (!estimateName) {
+                    estimateNameInput.classList.add('input-error');
+                    setTimeout(() => estimateNameInput.classList.remove('input-error'), 2000);
+                    return;
+                }
+                
                 const estimates = getSavedEstimates();
-                const newEstimate = { id: Date.now(), name: name, inputs: {}, summary: {
-                    totalCost: parseFloat(document.getElementById('totalCost').textContent.replace(/[^0-9.-]+/g,"")),
-                    finalPrice: parseFloat(document.getElementById('finalPrice').textContent.replace(/[^0-9.-]+/g,"")),
-                    grossMargin: parseFloat(document.getElementById('grossMarginValue').textContent)
-                }};
+                const newEstimate = {
+                    id: Date.now(),
+                    jobName: jobName,
+                    estimateName: estimateName,
+                    inputs: {},
+                    summary: {
+                        totalCost: parseFloat(document.getElementById('totalCost').textContent.replace(/[^0-9.-]+/g,"")),
+                        finalPrice: parseFloat(document.getElementById('finalPrice').textContent.replace(/[^0-9.-]+/g,"")),
+                        grossMargin: parseFloat(document.getElementById('grossMarginValue').textContent)
+                    }
+                };
                 inputIds.forEach(id => {
                     if(document.getElementById(id)) newEstimate.inputs[id] = document.getElementById(id).value;
                 });
+
                 estimates.push(newEstimate);
                 saveEstimates(estimates);
-                renderSavedEstimates();
                 estimateNameInput.value = '';
+                alert(`Estimate '${estimateName}' saved to job '${jobName}'.`);
             });
 
-            savedEstimatesList.addEventListener('click', (e) => {
-                const loadButton = e.target.closest('.load-btn');
-                const deleteButton = e.target.closest('.delete-btn');
-                const shareButton = e.target.closest('.share-btn');
+            // --- ESTIMATE MANAGER LOGIC ---
+            function openEstimateManager() {
+                const estimates = getSavedEstimates();
+                const groupedEstimates = estimates.reduce((acc, est) => {
+                    (acc[est.jobName] = acc[est.jobName] || []).push(est);
+                    return acc;
+                }, {});
+
+                managerContent.innerHTML = '';
+                if (Object.keys(groupedEstimates).length === 0) {
+                    managerContent.innerHTML = `<p class="text-center text-gray-500">No estimates saved yet.</p>`;
+                } else {
+                    for (const jobName in groupedEstimates) {
+                        const group = groupedEstimates[jobName];
+                        const groupContainer = document.createElement('div');
+                        groupContainer.className = 'p-4 border rounded-lg';
+                        
+                        let estimatesHTML = group.map(est => `
+                            <div class="p-3 bg-gray-50 rounded-lg border flex justify-between items-center" data-id="${est.id}">
+                                <div>
+                                    <p class="font-semibold text-gray-800">${est.estimateName}</p>
+                                    <p class="text-sm text-gray-600">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(est.summary.finalPrice)} | ${est.summary.grossMargin.toFixed(1)}% Margin</p>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button data-id="${est.id}" title="Load this estimate" class="load-btn text-sm bg-green-500 text-white px-3 py-1.5 rounded-md hover:bg-green-600 btn">Load</button>
+                                    <button data-id="${est.id}" title="Delete this estimate" class="delete-btn text-sm bg-red-500 text-white px-3 py-1.5 rounded-md hover:bg-red-600 btn">Del</button>
+                                </div>
+                            </div>
+                        `).join('');
+
+                        groupContainer.innerHTML = `
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-xl font-bold text-gray-700">${jobName}</h3>
+                                <button data-job-name="${jobName}" class="export-group-btn text-sm bg-purple-600 text-white px-3 py-1.5 rounded-md hover:bg-purple-700 btn">Export Group to CSV</button>
+                            </div>
+                            <div class="space-y-3">${estimatesHTML}</div>
+                        `;
+                        managerContent.appendChild(groupContainer);
+                    }
+                }
                 
-                if (!loadButton && !deleteButton && !shareButton) return;
+                estimateManagerModal.classList.remove('hidden');
+                setTimeout(() => estimateManagerModal.classList.remove('opacity-0'), 10);
+            }
 
-                const button = loadButton || deleteButton || shareButton;
-                const index = button.dataset.index;
+            function closeEstimateManager() {
+                estimateManagerModal.classList.add('opacity-0');
+                setTimeout(() => estimateManagerModal.classList.add('hidden'), 300);
+            }
+
+            openManagerBtn.addEventListener('click', openEstimateManager);
+            closeManagerBtn.addEventListener('click', closeEstimateManager);
+
+            managerContent.addEventListener('click', (e) => {
+                const target = e.target.closest('button');
+                if (!target) return;
+
+                const id = target.dataset.id;
                 let estimates = getSavedEstimates();
-                const estimateData = estimates[index];
 
-                if (loadButton && estimateData) {
-                    Object.keys(estimateData.inputs).forEach(id => {
-                        const element = document.getElementById(id);
-                        if(element) element.value = estimateData.inputs[id];
-                    });
-                    calculateEstimate();
-                } else if (deleteButton) {
-                    estimates.splice(index, 1);
-                    saveEstimates(estimates);
-                    renderSavedEstimates();
-                } else if (shareButton && estimateData) {
-                    generateShareLink(estimateData.inputs);
-                    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                if (target.classList.contains('load-btn')) {
+                    const estimateToLoad = estimates.find(est => est.id == id);
+                    if (estimateToLoad) {
+                        Object.keys(estimateToLoad.inputs).forEach(inputId => {
+                            const element = document.getElementById(inputId);
+                            if(element) element.value = estimateToLoad.inputs[inputId];
+                        });
+                        calculateEstimate();
+                        closeEstimateManager();
+                    }
+                } else if (target.classList.contains('delete-btn')) {
+                    const newEstimates = estimates.filter(est => est.id != id);
+                    saveEstimates(newEstimates);
+                    openEstimateManager(); // Re-render the manager
+                } else if (target.classList.contains('export-group-btn')) {
+                    const jobName = target.dataset.jobName;
+                    exportGroupToCSV(jobName);
                 }
             });
+
+            function exportGroupToCSV(jobName) {
+                const estimates = getSavedEstimates().filter(est => est.jobName === jobName);
+                if (estimates.length === 0) return;
+
+                const headers = ['Job Name', 'Estimate Name', 'Final Price', 'Gross Margin', 'Total Cost', ...Object.keys(estimates[0].inputs)];
+                let csvContent = "data:text/csv;charset=utf-8," + headers.join(',') + '\n';
+
+                estimates.forEach(est => {
+                    const rowData = [
+                        `"${est.jobName}"`,
+                        `"${est.estimateName}"`,
+                        est.summary.finalPrice,
+                        est.summary.grossMargin,
+                        est.summary.totalCost,
+                        ...Object.values(est.inputs).map(val => `"${val}"`)
+                    ];
+                    csvContent += rowData.join(',') + '\n';
+                });
+
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `${jobName}_estimates.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
             
             // --- SHARING LOGIC ---
             function generateShareLink(data) {
                 const dataToShare = data || getCurrentInputs();
                 const jsonString = JSON.stringify(dataToShare);
-                const encodedData = btoa(jsonString); // Base64 encode
+                const encodedData = btoa(jsonString);
                 const baseUrl = window.location.href.split('#')[0];
                 const shareUrl = `${baseUrl}#${encodedData}`;
                 
@@ -484,14 +578,12 @@
                 try {
                     if (window.location.hash) {
                         const encodedData = window.location.hash.substring(1);
-                        const jsonString = atob(encodedData); // Decode Base64
+                        const jsonString = atob(encodedData);
                         const data = JSON.parse(jsonString);
-                        
                         Object.keys(data).forEach(id => {
                             const element = document.getElementById(id);
                             if (element) element.value = data[id];
                         });
-                        // Clear the hash to prevent re-loading on refresh
                         history.pushState("", document.title, window.location.pathname + window.location.search);
                     }
                 } catch (error) {
@@ -508,6 +600,29 @@
                 setTimeout(() => copyFeedback.classList.add('hidden'), 2000);
             });
 
+            // --- NEW: Reset Form Logic ---
+            function resetForm() {
+                // Reset text and number inputs
+                numericInputs.forEach(input => {
+                    if (input.id.includes('Days') || input.id.includes('Hours') || input.id.includes('Loads') || input.id.includes('Tons') || input.id.includes('Expenses') || input.id.includes('Markings') || input.id.includes('Crackfill') || input.id.includes('Sealcoat') || input.id.includes('Concrete')) {
+                        input.value = '0';
+                    } else {
+                        input.value = '';
+                    }
+                });
+                
+                // Reset select and range inputs to defaults
+                asphaltDepthSelect.value = "2.5";
+                costingModelSelect.selectedIndex = 0;
+                grossMarginSlider.value = "37";
+                jobNameInput.value = '';
+                estimateNameInput.value = '';
+
+                calculateEstimate(); // Recalculate to update the display
+            }
+
+            newEstimateBtn.addEventListener('click', resetForm);
+
             // --- EVENT LISTENERS ---
             allInputs.forEach(input => {
                 input.addEventListener('input', (e) => {
@@ -519,9 +634,8 @@
             // --- INITIALIZATION ---
             populateDepthOptions();
             populateCostingModels();
-            loadFromURL(); // Check for shared data in URL on load
+            loadFromURL();
             calculateEstimate();
-            renderSavedEstimates();
         });
     </script>
 </body>
